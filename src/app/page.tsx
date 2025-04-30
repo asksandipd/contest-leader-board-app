@@ -3,16 +3,27 @@
 import * as React from 'react';
 import LeaderboardTable from '@/components/leaderboard/leaderboard-table';
 import UpdateForm from '@/components/leaderboard/update-form';
-import { initialContestants, simulateUpdate, simulateNewContestant } from '@/data/initial-contestants';
+import { initialContestants as generateInitialContestantsData, simulateUpdate, simulateNewContestant } from '@/data/initial-contestants';
 import type { Contestant, ContestantUpdateInput, ProblemKey } from '@/types/contestant';
-import { calculateOverallScore, calculateOverallTime, calculateOverallSystemTestsPassedPercent, updateRanks, recalculateAndRank } from '@/lib/leaderboard-utils';
+import { recalculateAndRank } from '@/lib/leaderboard-utils';
 import { Button } from '@/components/ui/button';
 import { Play, Pause, UserPlus } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton for loading state
 
 export default function Home() {
-  const [contestants, setContestants] = React.useState<Contestant[]>(initialContestants);
+  // Initialize state as empty to avoid hydration mismatch
+  const [contestants, setContestants] = React.useState<Contestant[]>([]);
+  const [isLoading, setIsLoading] = React.useState<boolean>(true); // Add loading state
   const [isSimulating, setIsSimulating] = React.useState<boolean>(false);
   const simulationIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Populate initial contestants on the client side after mount
+  React.useEffect(() => {
+    const initialData = generateInitialContestantsData; // Get the generated data
+    setContestants(initialData);
+    setIsLoading(false); // Set loading to false after data is set
+  }, []); // Empty dependency array ensures this runs only once on the client after mount
+
 
   const handleUpdate = (updateData: ContestantUpdateInput) => {
     setContestants((prevContestants) => {
@@ -104,18 +115,28 @@ export default function Home() {
 
         {/* Simulation Controls */}
         <div className="flex gap-4 items-center">
-             <Button onClick={isSimulating ? stopSimulation : startSimulation} variant="outline">
+             <Button onClick={isSimulating ? stopSimulation : startSimulation} variant="outline" disabled={isLoading}>
                  {isSimulating ? <Pause className="mr-2" /> : <Play className="mr-2" />}
                  {isSimulating ? 'Pause Simulation' : 'Start Simulation'}
              </Button>
-              <Button onClick={handleAddNewContestant} variant="secondary" disabled={contestants.length >= 1000}>
+              <Button onClick={handleAddNewContestant} variant="secondary" disabled={isLoading || contestants.length >= 1000}>
                  <UserPlus className="mr-2" /> Add New Contestant
              </Button>
         </div>
 
+      {/* Show skeleton or placeholder while loading initial data */}
+      {isLoading ? (
+         <div className="w-full space-y-2 border rounded-md shadow-md p-4 h-[60vh] md:h-[70vh] overflow-hidden">
+            <Skeleton className="h-12 w-full" />
+            {[...Array(10)].map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+         </div>
+       ) : (
+         <LeaderboardTable contestants={contestants} />
+       )}
 
-      <LeaderboardTable contestants={contestants} />
-      <UpdateForm onSubmit={handleUpdate} existingUserNames={existingUserNames} />
+      <UpdateForm onSubmit={handleUpdate} existingUserNames={existingUserNames} disabled={isLoading} />
     </div>
   );
 }

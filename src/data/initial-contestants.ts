@@ -1,6 +1,6 @@
 import type { Contestant, ProblemKey } from '@/types/contestant';
 import { PROBLEM_KEYS } from '@/types/contestant';
-import { calculateOverallScore, calculateOverallTime, calculateOverallSystemTestsPassedPercent, updateRanks } from '@/lib/leaderboard-utils';
+import { calculateOverallScore, calculateOverallTime, calculateOverallSystemTestsPassedPercent, updateRanks, recalculateAndRank } from '@/lib/leaderboard-utils'; // Import recalculateAndRank
 
 const countries = [
   { name: 'USA', flagUrl: '/assets/flags/us.svg' },
@@ -28,6 +28,13 @@ const countries = [
 
 // Function to generate a random integer between min and max (inclusive)
 const getRandomInt = (min: number, max: number): number => {
+  // This function uses Math.random() and should only be called client-side or
+  // where deterministic server-side rendering is not required for this data.
+  if (typeof window === 'undefined') {
+    // Basic pseudo-random for server-side if needed, less random than Math.random
+    // Consider a seed-based generator if consistency is critical server-side
+    return min + (Date.now() % (max - min + 1));
+  }
   return Math.floor(Math.random() * (max - min + 1)) + min;
 };
 
@@ -45,7 +52,7 @@ const generateInitialContestants = (count: number): Contestant[] => {
   for (let i = 0; i < count; i++) {
     const countryInfo = countries[getRandomInt(0, countries.length - 1)];
     const contestantBase = {
-      id: `contestant-${i + 1}`,
+      id: `contestant-${i + 1}-${getRandomInt(1000, 9999)}`, // Add random element to ID
       userName: generateUserName(i),
       country: countryInfo.name,
       countryFlagUrl: countryInfo.flagUrl,
@@ -56,11 +63,11 @@ const generateInitialContestants = (count: number): Contestant[] => {
     let solvedCount = 0;
     PROBLEM_KEYS.forEach(key => {
        // Decide if the problem is attempted (70% chance)
-      if (Math.random() < 0.7) {
+      if (getRandomInt(1, 10) <= 7) { // Use getRandomInt
            // Decide if the attempt is successful (score > 0) - higher chance for earlier problems
             const problemIndex = PROBLEM_KEYS.indexOf(key);
             const successChance = 0.8 - problemIndex * 0.1; // e.g., 80% for A, 70% for B,...
-            const isSolved = Math.random() < successChance;
+            const isSolved = getRandomInt(1, 100) <= successChance * 100; // Use getRandomInt
 
             if(isSolved) {
               solvedCount++;
@@ -83,7 +90,7 @@ const generateInitialContestants = (count: number): Contestant[] => {
     });
 
     // Ensure at least one problem is solved for variety, unless it's the very beginning
-    if (solvedCount === 0 && i > 10) {
+    if (solvedCount === 0 && i > 10 && getRandomInt(1, 10) <= 5) { // Use getRandomInt
         const randomProblem = PROBLEM_KEYS[getRandomInt(0, PROBLEM_KEYS.length - 1)];
         problemData[randomProblem] = {
             score: getRandomInt(50, 100),
@@ -109,33 +116,33 @@ const generateInitialContestants = (count: number): Contestant[] => {
 };
 
 
-export const initialContestants: Contestant[] = generateInitialContestants(500);
+export const initialContestants: Contestant[] = generateInitialContestants(50); // Reduced initial count for faster load
+
 
 // --- Simulation Logic ---
 
 /**
  * Simulates an update event for a random contestant.
+ * IMPORTANT: This function uses Math.random() and should only be called client-side.
  */
 export function simulateUpdate(currentContestants: Contestant[]): Contestant[] {
+  if (typeof window === 'undefined') return currentContestants; // Prevent running on server
   if (currentContestants.length === 0) return [];
 
   const contestantIndex = getRandomInt(0, currentContestants.length - 1);
-  const contestantToUpdate = { ...currentContestants[contestantIndex] }; // Shallow copy
+  // Ensure we don't mutate the original state directly
+  const updatedContestants = currentContestants.map(c => ({ ...c }));
+  const contestantToUpdate = updatedContestants[contestantIndex];
+
   const problemKey = PROBLEM_KEYS[getRandomInt(0, PROBLEM_KEYS.length - 1)];
 
   // Simulate a new submission or re-submission
-  const score = getRandomInt(1, 100); // New score (could be higher or lower)
+  const score = getRandomInt(1, 100); // New score
   const timeTaken = (contestantToUpdate[problemKey].timeTaken ?? 0) + getRandomInt(60, 600); // Add more time
   const systemTestsPassedPercent = getRandomInt(0, 100); // New pass percentage
 
+  // Create a new problem submission object
   contestantToUpdate[problemKey] = { score, timeTaken, systemTestsPassedPercent };
-
-
-  // Create a new array with the updated contestant
-  const updatedContestants = currentContestants.map((c, index) =>
-    index === contestantIndex ? contestantToUpdate : c
-  );
-
 
   // Recalculate scores, times, percentages, and re-rank everyone
   return recalculateAndRank(updatedContestants);
@@ -143,13 +150,16 @@ export function simulateUpdate(currentContestants: Contestant[]): Contestant[] {
 
 /**
  * Simulates adding a new contestant.
+ * IMPORTANT: This function uses Math.random() and should only be called client-side.
  */
 export function simulateNewContestant(currentContestants: Contestant[]): Contestant[] {
+    if (typeof window === 'undefined') return currentContestants; // Prevent running on server
+
     const newIndex = currentContestants.length;
     const countryInfo = countries[getRandomInt(0, countries.length - 1)];
     const newContestantBase: Omit<Contestant, 'rank' | 'overallScore' | 'overallTime' | 'overallSystemTestsPassedPercent'> = {
         id: `contestant-${Date.now()}-${newIndex + 1}`, // More unique ID
-        userName: `newbie_${newIndex + 1}`,
+        userName: `newbie_${newIndex + 1}_${getRandomInt(100, 999)}`, // Add random suffix
         country: countryInfo.name,
         countryFlagUrl: countryInfo.flagUrl,
         problemA: { score: null, timeTaken: null, systemTestsPassedPercent: null },
@@ -160,7 +170,7 @@ export function simulateNewContestant(currentContestants: Contestant[]): Contest
     };
 
      // Give the new contestant a small chance to have solved one problem
-    if (Math.random() < 0.3) {
+    if (getRandomInt(1, 10) <= 3) { // Use getRandomInt
         const problemKey = PROBLEM_KEYS[getRandomInt(0, PROBLEM_KEYS.length-1)];
         newContestantBase[problemKey] = {
             score: getRandomInt(30, 70),

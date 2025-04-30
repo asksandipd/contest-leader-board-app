@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import type { ContestantUpdateInput, ProblemKey } from "@/types/contestant";
 import { PROBLEM_KEYS } from "@/types/contestant";
+import { cn } from "@/lib/utils"; // Import cn
 
 // Zod schema for validation
 const problemSchema = z.object({
@@ -40,9 +41,10 @@ type UpdateFormValues = z.infer<typeof formSchema>;
 interface UpdateFormProps {
   onSubmit: (data: ContestantUpdateInput) => void;
   existingUserNames: string[]; // For autocomplete or validation suggestions
+  disabled?: boolean; // Add disabled prop
 }
 
-const UpdateForm: React.FC<UpdateFormProps> = ({ onSubmit, existingUserNames }) => {
+const UpdateForm: React.FC<UpdateFormProps> = ({ onSubmit, existingUserNames, disabled = false }) => {
   const { toast } = useToast();
   const form = useForm<UpdateFormValues>({
     resolver: zodResolver(formSchema),
@@ -117,81 +119,83 @@ const UpdateForm: React.FC<UpdateFormProps> = ({ onSubmit, existingUserNames }) 
   };
 
   return (
-    <Card className="w-full mt-8 shadow-lg">
+    <Card className={cn("w-full mt-8 shadow-lg", disabled && "opacity-50 pointer-events-none")}>
       <CardHeader>
         <CardTitle>Update Contestant Score</CardTitle>
         <CardDescription>Enter submission details for a contestant. Only fill fields you want to update.</CardDescription>
       </CardHeader>
       <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="userName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Username</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., coder_pro_123" {...field} list="usernames" />
-                  </FormControl>
-                   <datalist id="usernames">
-                        {existingUserNames.map(name => <option key={name} value={name} />)}
-                   </datalist>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        <fieldset disabled={disabled} className="space-y-6"> {/* Disable form elements when disabled */}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)}>
+              <FormField
+                control={form.control}
+                name="userName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., coder_pro_123" {...field} list="usernames" />
+                    </FormControl>
+                    <datalist id="usernames">
+                          {existingUserNames.map(name => <option key={name} value={name} />)}
+                    </datalist>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {PROBLEM_KEYS.map((key) => (
-                <div key={key} className="border p-4 rounded-md space-y-2 bg-card">
-                   <h4 className="font-medium text-center text-primary">{`Problem ${key.charAt(key.length - 1)}`}</h4>
-                   <FormField
-                     control={form.control}
-                     name={`${key}.score`}
-                     render={({ field }) => (
-                       <FormItem>
-                         <FormLabel className="text-xs">Score (0-100)</FormLabel>
-                         <FormControl>
-                           <Input type="number" placeholder="--" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : e.target.value)} />
-                         </FormControl>
-                         <FormMessage />
-                       </FormItem>
-                     )}
-                   />
-                   <FormField
-                     control={form.control}
-                     name={`${key}.timeTaken`}
-                     render={({ field }) => (
-                       <FormItem>
-                         <FormLabel className="text-xs">Time (s, 0-3600)</FormLabel>
-                         <FormControl>
-                           <Input type="number" placeholder="--" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : e.target.value)} />
-                         </FormControl>
-                         <FormMessage />
-                       </FormItem>
-                     )}
-                   />
-                   <FormField
-                     control={form.control}
-                     name={`${key}.systemTestsPassedPercent`}
-                     render={({ field }) => (
-                       <FormItem>
-                         <FormLabel className="text-xs">Tests % (0-100)</FormLabel>
-                         <FormControl>
-                           <Input type="number" placeholder="--" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : e.target.value)} />
-                         </FormControl>
-                         <FormMessage />
-                       </FormItem>
-                     )}
-                   />
-                 </div>
-              ))}
-            </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-4">
+                {PROBLEM_KEYS.map((key) => (
+                  <div key={key} className="border p-4 rounded-md space-y-2 bg-card">
+                    <h4 className="font-medium text-center text-primary">{`Problem ${key.charAt(key.length - 1)}`}</h4>
+                    <FormField
+                      control={form.control}
+                      name={`${key}.score`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">Score (0-100)</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="--" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : Number.isNaN(parseInt(e.target.value)) ? null : parseInt(e.target.value))} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`${key}.timeTaken`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">Time (s, 0-3600)</FormLabel>
+                          <FormControl>
+                             <Input type="number" placeholder="--" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : Number.isNaN(parseInt(e.target.value)) ? null : parseInt(e.target.value))} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`${key}.systemTestsPassedPercent`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">Tests % (0-100)</FormLabel>
+                          <FormControl>
+                             <Input type="number" placeholder="--" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : Number.isNaN(parseInt(e.target.value)) ? null : parseInt(e.target.value))} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                ))}
+              </div>
 
-            <Button type="submit" className="w-full sm:w-auto">Submit Update</Button>
-          </form>
-        </Form>
+              <Button type="submit" className="w-full sm:w-auto mt-6">Submit Update</Button>
+            </form>
+          </Form>
+        </fieldset>
       </CardContent>
     </Card>
   );
