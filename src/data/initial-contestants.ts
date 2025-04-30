@@ -1,6 +1,7 @@
 import type { Contestant, ProblemKey } from '@/types/contestant';
 import { PROBLEM_KEYS } from '@/types/contestant';
-import { calculateOverallScore, calculateOverallTime, calculateOverallSystemTestsPassedPercent, updateRanks, recalculateAndRank } from '@/lib/leaderboard-utils'; // Import recalculateAndRank
+// Import recalculateAndRank, and confirm other needed functions are also imported
+import { calculateOverallScore, calculateOverallTime, calculateOverallSystemTestsPassedPercent, updateRanks, recalculateAndRank } from '@/lib/leaderboard-utils';
 
 const countries = [
   { name: 'USA', flagUrl: '/assets/flags/us.svg' },
@@ -115,8 +116,14 @@ const generateInitialContestants = (count: number): Contestant[] => {
   return updateRanks(fullContestants); // Calculate initial ranks after scores/times are set
 };
 
+// Generate initial data outside of the component to avoid re-running on every render
+// Note: This still runs Math.random() on module load, which can cause hydration issues
+// if the server and client generate different initial sets.
+// Moving the generation inside useEffect in the component (`page.tsx`) mitigates this.
+const initialContestantsData = generateInitialContestants(50); // Reduced initial count for faster load
 
-export const initialContestants: Contestant[] = generateInitialContestants(50); // Reduced initial count for faster load
+// Export the generated data if needed elsewhere directly (though using useEffect is safer)
+export { initialContestantsData as initialContestants };
 
 
 // --- Simulation Logic ---
@@ -130,8 +137,15 @@ export function simulateUpdate(currentContestants: Contestant[]): Contestant[] {
   if (currentContestants.length === 0) return [];
 
   const contestantIndex = getRandomInt(0, currentContestants.length - 1);
-  // Ensure we don't mutate the original state directly
-  const updatedContestants = currentContestants.map(c => ({ ...c }));
+  // Create a deep copy to ensure nested problem objects are copied too
+   const updatedContestants = currentContestants.map(c => ({
+     ...c,
+     problemA: { ...c.problemA },
+     problemB: { ...c.problemB },
+     problemC: { ...c.problemC },
+     problemD: { ...c.problemD },
+     problemE: { ...c.problemE },
+   }));
   const contestantToUpdate = updatedContestants[contestantIndex];
 
   const problemKey = PROBLEM_KEYS[getRandomInt(0, PROBLEM_KEYS.length - 1)];
@@ -141,10 +155,10 @@ export function simulateUpdate(currentContestants: Contestant[]): Contestant[] {
   const timeTaken = (contestantToUpdate[problemKey].timeTaken ?? 0) + getRandomInt(60, 600); // Add more time
   const systemTestsPassedPercent = getRandomInt(0, 100); // New pass percentage
 
-  // Create a new problem submission object
+  // Update the copied contestant's problem data directly
   contestantToUpdate[problemKey] = { score, timeTaken, systemTestsPassedPercent };
 
-  // Recalculate scores, times, percentages, and re-rank everyone
+  // Recalculate scores, times, percentages, and re-rank everyone using the imported function
   return recalculateAndRank(updatedContestants);
 }
 
@@ -190,5 +204,6 @@ export function simulateNewContestant(currentContestants: Contestant[]): Contest
 
     const combinedList = [...currentContestants, newContestantWithCalcs];
 
-    return updateRanks(combinedList); // Add and re-rank
+    // Use updateRanks here as scores/times were calculated before adding
+    return updateRanks(combinedList);
 }

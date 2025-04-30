@@ -3,7 +3,8 @@
 import * as React from 'react';
 import LeaderboardTable from '@/components/leaderboard/leaderboard-table';
 import UpdateForm from '@/components/leaderboard/update-form';
-import { initialContestants as generateInitialContestantsData, simulateUpdate, simulateNewContestant } from '@/data/initial-contestants';
+// Import the simulation functions and the generator function itself
+import { simulateUpdate, simulateNewContestant, initialContestants as generateInitialContestantsData } from '@/data/initial-contestants';
 import type { Contestant, ContestantUpdateInput, ProblemKey } from '@/types/contestant';
 import { recalculateAndRank } from '@/lib/leaderboard-utils';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,8 @@ export default function Home() {
 
   // Populate initial contestants on the client side after mount
   React.useEffect(() => {
-    const initialData = generateInitialContestantsData; // Get the generated data
+    // Call the generator function here to ensure it runs client-side
+    const initialData = generateInitialContestantsData; // Use the imported data directly
     setContestants(initialData);
     setIsLoading(false); // Set loading to false after data is set
   }, []); // Empty dependency array ensures this runs only once on the client after mount
@@ -33,7 +35,9 @@ export default function Home() {
         return prevContestants; // Return previous state if user not found
       }
 
-      const updatedContestant = { ...prevContestants[targetIndex] }; // Shallow copy
+       // Create a deep copy of the contestant to update to avoid direct state mutation
+       const updatedContestant = JSON.parse(JSON.stringify(prevContestants[targetIndex]));
+
 
       // Update problem data
       (Object.keys(updateData) as Array<keyof ContestantUpdateInput>).forEach(key => {
