@@ -4,7 +4,7 @@ import * as React from 'react';
 import LeaderboardTable from '@/components/leaderboard/leaderboard-table';
 import UpdateForm from '@/components/leaderboard/update-form';
 // Import the simulation functions and the generator function itself
-import { simulateUpdate, simulateNewContestant, initialContestants as generateInitialContestantsData } from '@/data/initial-contestants';
+import { simulateUpdate, simulateNewContestant, initialContestants as serverGeneratedInitialContestants } from '@/data/initial-contestants';
 import type { Contestant, ContestantUpdateInput, ProblemKey } from '@/types/contestant';
 import { recalculateAndRank } from '@/lib/leaderboard-utils';
 import { Button } from '@/components/ui/button';
@@ -20,9 +20,11 @@ export default function Home() {
 
   // Populate initial contestants on the client side after mount
   React.useEffect(() => {
-    // Call the generator function here to ensure it runs client-side
-    const initialData = generateInitialContestantsData; // Use the imported data directly
-    setContestants(initialData);
+    // Use the server-generated data as the initial state on the client.
+    // This ensures the client starts with the same data the server rendered,
+    // avoiding the hydration mismatch caused by client-side random generation
+    // differing from server-side random generation.
+    setContestants(serverGeneratedInitialContestants);
     setIsLoading(false); // Set loading to false after data is set
   }, []); // Empty dependency array ensures this runs only once on the client after mount
 
@@ -70,7 +72,7 @@ export default function Home() {
    const runSimulationStep = () => {
         setContestants(prevContestants => {
             // Randomly decide whether to update or add a new contestant
-            if (Math.random() < 0.1 && prevContestants.length < 1000) { // 10% chance to add new, limit total contestants
+            if (typeof window !== 'undefined' && Math.random() < 0.1 && prevContestants.length < 1000) { // 10% chance to add new, limit total contestants
                 return simulateNewContestant(prevContestants);
             } else {
                 return simulateUpdate(prevContestants);

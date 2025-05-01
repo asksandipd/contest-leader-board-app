@@ -43,6 +43,10 @@ const getRandomInt = (min: number, max: number): number => {
 const generateUserName = (index: number): string => {
   const prefixes = ['coder', 'dev', 'ninja', 'hacker', 'wizard', 'alpha', 'beta', 'gamma'];
   const suffixes = ['pro', 'master', 'guru', 'expert', 'ace', 'king', 'queen'];
+   // Ensure random generation only happens client-side
+   if (typeof window === 'undefined') {
+       return `${prefixes[index % prefixes.length]}_${suffixes[index % suffixes.length]}_${index + 1}`;
+   }
   return `${prefixes[getRandomInt(0, prefixes.length - 1)]}_${suffixes[getRandomInt(0, suffixes.length - 1)]}_${index + 1}`;
 };
 
@@ -51,9 +55,11 @@ const generateInitialContestants = (count: number): Contestant[] => {
   const contestants: Omit<Contestant, 'rank' | 'overallScore' | 'overallTime' | 'overallSystemTestsPassedPercent'>[] = [];
 
   for (let i = 0; i < count; i++) {
-    const countryInfo = countries[getRandomInt(0, countries.length - 1)];
+    // Use modulo for server-side consistency, random for client
+    const countryIndex = typeof window === 'undefined' ? i % countries.length : getRandomInt(0, countries.length - 1);
+    const countryInfo = countries[countryIndex];
     const contestantBase = {
-      id: `contestant-${i + 1}-${getRandomInt(1000, 9999)}`, // Add random element to ID
+      id: `contestant-${i + 1}-${typeof window === 'undefined' ? 'server' : getRandomInt(1000, 9999)}`, // Add random element to ID only client-side
       userName: generateUserName(i),
       country: countryInfo.name,
       countryFlagUrl: countryInfo.flagUrl,
@@ -63,24 +69,27 @@ const generateInitialContestants = (count: number): Contestant[] => {
 
     let solvedCount = 0;
     PROBLEM_KEYS.forEach(key => {
-       // Decide if the problem is attempted (70% chance)
-      if (getRandomInt(1, 10) <= 7) { // Use getRandomInt
-           // Decide if the attempt is successful (score > 0) - higher chance for earlier problems
+      // Consistent check for server, random for client
+       const attemptCheck = typeof window === 'undefined' ? (i % 10) <= 6 : getRandomInt(1, 10) <= 7;
+      if (attemptCheck) { // Use getRandomInt client-side
             const problemIndex = PROBLEM_KEYS.indexOf(key);
             const successChance = 0.8 - problemIndex * 0.1; // e.g., 80% for A, 70% for B,...
-            const isSolved = getRandomInt(1, 100) <= successChance * 100; // Use getRandomInt
+            // Consistent check for server, random for client
+            const solveCheck = typeof window === 'undefined' ? ((i * (problemIndex + 1)) % 100) <= successChance * 100 : getRandomInt(1, 100) <= successChance * 100;
+            const isSolved = solveCheck; // Use getRandomInt client-side
 
             if(isSolved) {
               solvedCount++;
-              const score = getRandomInt(50, 100); // Score if solved
-              const timeTaken = getRandomInt(300, 3000); // Time taken if solved (5min to 50min)
-              const systemTestsPassedPercent = getRandomInt(80, 100); // High pass rate if solved
+              // Consistent scores/times for server, random for client
+              const score = typeof window === 'undefined' ? 75 + (i % 26) : getRandomInt(50, 100); // Score if solved
+              const timeTaken = typeof window === 'undefined' ? 1000 + (i * 100 % 2000) : getRandomInt(300, 3000); // Time taken if solved (5min to 50min)
+              const systemTestsPassedPercent = typeof window === 'undefined' ? 90 + (i % 11) : getRandomInt(80, 100); // High pass rate if solved
                problemData[key] = { score, timeTaken, systemTestsPassedPercent };
             } else {
-                // Attempted but not solved (e.g., wrong answer, TLE)
                 const score = 0; // Score is 0 if not solved correctly
-                const timeTaken = getRandomInt(100, 1800); // Time spent on attempt
-                const systemTestsPassedPercent = getRandomInt(0, 70); // Lower pass rate
+                // Consistent times for server, random for client
+                const timeTaken = typeof window === 'undefined' ? 500 + (i * 50 % 1300) : getRandomInt(100, 1800); // Time spent on attempt
+                const systemTestsPassedPercent = typeof window === 'undefined' ? 30 + (i % 41) : getRandomInt(0, 70); // Lower pass rate
                 problemData[key] = { score, timeTaken, systemTestsPassedPercent };
             }
 
@@ -90,13 +99,15 @@ const generateInitialContestants = (count: number): Contestant[] => {
       }
     });
 
-    // Ensure at least one problem is solved for variety, unless it's the very beginning
-    if (solvedCount === 0 && i > 10 && getRandomInt(1, 10) <= 5) { // Use getRandomInt
-        const randomProblem = PROBLEM_KEYS[getRandomInt(0, PROBLEM_KEYS.length - 1)];
+    // Consistent check for server, random for client
+    const ensureSolvedCheck = typeof window === 'undefined' ? (i > 10 && (i % 10) <= 4) : (i > 10 && getRandomInt(1, 10) <= 5);
+    if (solvedCount === 0 && ensureSolvedCheck) { // Use getRandomInt client-side
+        const randomProblemIndex = typeof window === 'undefined' ? i % PROBLEM_KEYS.length : getRandomInt(0, PROBLEM_KEYS.length - 1);
+        const randomProblem = PROBLEM_KEYS[randomProblemIndex];
         problemData[randomProblem] = {
-            score: getRandomInt(50, 100),
-            timeTaken: getRandomInt(300, 3000),
-            systemTestsPassedPercent: getRandomInt(80, 100)
+             score: typeof window === 'undefined' ? 75 + (i % 26) : getRandomInt(50, 100),
+             timeTaken: typeof window === 'undefined' ? 1000 + (i * 100 % 2000) : getRandomInt(300, 3000),
+             systemTestsPassedPercent: typeof window === 'undefined' ? 90 + (i % 11) : getRandomInt(80, 100)
         };
     }
 
@@ -117,12 +128,11 @@ const generateInitialContestants = (count: number): Contestant[] => {
 };
 
 // Generate initial data outside of the component to avoid re-running on every render
-// Note: This still runs Math.random() on module load, which can cause hydration issues
-// if the server and client generate different initial sets.
-// Moving the generation inside useEffect in the component (`page.tsx`) mitigates this.
-const initialContestantsData = generateInitialContestants(50); // Reduced initial count for faster load
+// Moved generation into useEffect in page.tsx to avoid hydration errors
+const initialContestantsData = generateInitialContestants(50); // Generate server-side consistent data
 
-// Export the generated data if needed elsewhere directly (though using useEffect is safer)
+
+// Export the generated data (will be consistent on server, overwritten on client)
 export { initialContestantsData as initialContestants };
 
 
